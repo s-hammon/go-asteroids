@@ -1,21 +1,20 @@
 package main
 
 import (
-	"image/color"
-
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/vector"
 )
 
 type Asteroid struct {
+	Id       int
 	Position Vector2
 	Velocity Vector2
 	Rotation float64
 	Size     float64
 }
 
-func NewAsteroid(pos Vector2, vel Vector2, size float64) *Asteroid {
+func NewAsteroid(id int, pos Vector2, vel Vector2, size float64) *Asteroid {
 	return &Asteroid{
+		Id:       id,
 		Position: pos,
 		Velocity: vel,
 		Rotation: 0,
@@ -26,28 +25,19 @@ func NewAsteroid(pos Vector2, vel Vector2, size float64) *Asteroid {
 func (a *Asteroid) Update() {
 	a.Position = a.Position.Add(a.Velocity)
 	a.Rotation += AsteroidRotationSpeed
-
-	// if a.Position.X < -a.Size {
-	// 	a.Position.X += ScreenWidth + a.Size*2
-	// }
-	// if a.Position.X > ScreenWidth+a.Size {
-	// 	a.Position.X -= ScreenWidth + a.Size*2
-	// }
-	// if a.Position.Y < -a.Size {
-	// 	a.Position.Y += ScreenHeight + a.Size*2
-	// }
-	// if a.Position.Y > -a.Size {
-	// 	a.Position.Y -= ScreenHeight + a.Size*2
-	// }
 }
 
 func (a *Asteroid) Draw(screen *ebiten.Image) {
-	vector.FillCircle(
-		screen,
-		float32(a.Position.X),
-		float32(a.Position.Y),
-		float32(a.Size),
-		color.White,
-		false,
-	)
+	img := GetCircleImage(a.Size)
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(a.Position.X-a.Size, a.Position.Y-a.Size)
+	screen.DrawImage(img, op)
+}
+
+func (a *Asteroid) Radius() float64 {
+	return a.Size
+}
+
+func (a *Asteroid) Pos() Vector2 {
+	return a.Position
 }

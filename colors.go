@@ -1,0 +1,10 @@
+package main
+
+import (
+	"image/color"
+)
+
+var (
+	dragonRed   = color.RGBA{0xC4, 0x74, 0x6E, 0xFF}
+	dragonGreen = color.RGBA{0x8A, 0x9A, 0x7B, 0xFF}
+)

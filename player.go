@@ -14,23 +14,57 @@ func init() {
 	whitePx.Fill(color.White)
 }
 
+type PlayerState int
+
+const (
+	PlayerStateIdle PlayerState = iota
+	PlayerStateShoot
+	PlayerStateRespawn
+	PlayerStateDead
+)
+
 type Player struct {
 	Position Vector2
 	Velocity Vector2
 	Rotation float64
+	Size     float64
+	State    PlayerState
+
+	shootCooldown   float64
+	respawnCooldown float64
+	lives           int
+	blinkTimer      int
 }
 
 func NewPlayer() *Player {
 	return &Player{
 		Position: Vector2{
-			X: ScreenWidth / 2,
-			Y: ScreenHeight / 2,
+			X: ScreenWidthH,
+			Y: ScreenHeightH,
 		},
-		Rotation: -math.Pi / 2,
+		Rotation:        -math.Pi / 2,
+		Size:            PlayerSize,
+		State:           PlayerStateIdle,
+		shootCooldown:   0,
+		respawnCooldown: 0,
+		lives:           PlayerInitialLives,
 	}
 }
 
 func (p *Player) Update() {
+	p.shootCooldown--
+	p.respawnCooldown = max(0, p.respawnCooldown-1)
+
+	if p.respawnCooldown <= 0 {
+		p.blinkTimer = 0
+		p.State = PlayerStateIdle
+	} else {
+		p.blinkTimer++
+		if p.blinkTimer >= RespawnBlinkRate {
+			p.blinkTimer = 0
+		}
+	}
+
 	if ebiten.IsKeyPressed(ebiten.KeyA) {
 		p.Rotation -= PlayerRotationSpeed
 	}
@@ -39,11 +73,16 @@ func (p *Player) Update() {
 	}
 
 	if ebiten.IsKeyPressed(ebiten.KeyW) {
+		sin, cos := math.Sincos(p.Rotation)
 		thrust := Vector2{
-			X: math.Cos(p.Rotation),
-			Y: math.Sin(p.Rotation),
+			X: cos,
+			Y: sin,
 		}.Scale(PlayerSpeed)
 		p.Velocity = p.Velocity.Add(thrust)
+	}
+
+	if ebiten.IsKeyPressed(ebiten.KeySpace) && p.shootCooldown <= 0 {
+		p.State = PlayerStateShoot
 	}
 
 	p.Velocity = p.Velocity.Scale(PlayerFriction)
@@ -52,27 +91,32 @@ func (p *Player) Update() {
 }
 
 func (p *Player) Draw(screen *ebiten.Image) {
-	a := Vector2{
-		X: p.Position.X + math.Cos(p.Rotation)*PlayerSize*2,
-		Y: p.Position.Y + math.Sin(p.Rotation)*PlayerSize*2,
+	if p.respawnCooldown > 0 && p.blinkTimer < RespawnBlinkRate/2 {
+		return
 	}
 
-	b := Vector2{
-		X: p.Position.X + math.Cos(p.Rotation+2*math.Pi/3)*PlayerSize,
-		Y: p.Position.Y + math.Sin(p.Rotation+2*math.Pi/3)*PlayerSize,
-	}
+	img := GetPlayerImage()
+	op := &ebiten.DrawImageOptions{}
+	op.GeoM.Translate(-PlayerSize*2, -PlayerSize*2)
+	op.GeoM.Rotate(p.Rotation + math.Pi/2)
+	op.GeoM.Translate(p.Position.X, p.Position.Y)
+	screen.DrawImage(img, op)
+}
 
-	c := Vector2{
-		X: p.Position.X + math.Cos(p.Rotation-2*math.Pi/3)*PlayerSize,
-		Y: p.Position.Y + math.Sin(p.Rotation-2*math.Pi/3)*PlayerSize,
-	}
+func (p *Player) Radius() float64 {
+	return PlayerSize
+}
 
-	vertices := []ebiten.Vertex{
-		{DstX: float32(a.X), DstY: float32(a.Y), ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
-		{DstX: float32(b.X), DstY: float32(b.Y), ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
-		{DstX: float32(c.X), DstY: float32(c.Y), ColorR: 1, ColorG: 1, ColorB: 1, ColorA: 1},
-	}
-	indices := []uint16{0, 1, 2}
+func (p *Player) Pos() Vector2 {
+	return p.Position
+}
 
-	screen.DrawTriangles(vertices, indices, whitePx, nil)
+func (p *Player) cooldown() {
+	p.State = PlayerStateIdle
+	p.shootCooldown = PlayerShootCooldown
+}
+
+func (p *Player) respawn() {
+	p.State = PlayerStateRespawn
+	p.respawnCooldown = PlayerRespawnCooldown
 }
