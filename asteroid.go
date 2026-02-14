@@ -28,7 +28,7 @@ func (a *Asteroid) Update() {
 }
 
 func (a *Asteroid) Draw(screen *ebiten.Image) {
-	img := GetCircleImage(a.Size)
+	img := GetAsteroidImage(a.Size)
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Translate(a.Position.X-a.Size, a.Position.Y-a.Size)
 	screen.DrawImage(img, op)

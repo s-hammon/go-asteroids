@@ -36,11 +36,6 @@ const (
 	ShotSpeed    = 10
 )
 
-const (
-	statePlaying int = iota
-	stateGameOver
-)
-
 func main() {
 	ebiten.SetWindowTitle("Ye Olde Asteroids")
 	ebiten.SetWindowSize(ScreenWidth, ScreenHeight)

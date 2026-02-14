@@ -6,39 +6,23 @@ import (
 	"image/color"
 	"log"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"sync/atomic"
 
 	"github.com/hajimehoshi/ebiten/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
-	"golang.org/x/image/font"
-	"golang.org/x/image/font/gofont/goregular"
-	"golang.org/x/image/font/opentype"
 )
 
 var (
-	gameFont font.Face
-	f        *text.GoTextFace
+	f *text.GoTextFace
 
 	livesOp, scoreOp *text.DrawOptions
+
+	shootCh chan struct{}
 )
 
 func init() {
-	ttf, err := opentype.Parse(goregular.TTF)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	gameFont, err = opentype.NewFace(ttf, &opentype.FaceOptions{
-		Size:    24,
-		DPI:     72,
-		Hinting: font.HintingVertical,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
 	faceSource, err := text.NewGoTextFaceSource(bytes.NewReader(fonts.MPlus1pRegular_ttf))
 	if err != nil {
 		log.Fatal(err)
@@ -56,6 +40,8 @@ func init() {
 	scoreOp = &text.DrawOptions{}
 	scoreOp.ColorScale.ScaleWithColor(dragonRed)
 	scoreOp.GeoM.Translate(10, ScreenHeight-30)
+
+	shootCh = make(chan struct{}, 1)
 }
 
 type GameState int
@@ -63,6 +49,7 @@ type GameState int
 const (
 	GameStateTitle GameState = iota
 	GameStatePlaying
+	GameStatePaused
 	GameStateOver
 )
 
@@ -75,7 +62,8 @@ type Game struct {
 
 	nextAsteroidId int32
 	nextShotId     int32
-	score          int
+	points         points
+	pauseDelay     float64
 }
 
 func NewGame() *Game {
@@ -89,6 +77,8 @@ func NewGame() *Game {
 }
 
 func (g *Game) Update() error {
+	g.pauseDelay = max(0, g.pauseDelay-1)
+
 	switch g.State {
 	default:
 		panic(fmt.Sprintln("unknown game state:", g.State))
@@ -96,16 +86,32 @@ func (g *Game) Update() error {
 		if ebiten.IsKeyPressed(ebiten.KeyR) {
 			g.Restart()
 		}
+		if ebiten.IsKeyPressed(ebiten.KeyQ) {
+			return ebiten.Termination
+		}
 	case GameStateTitle:
 		if ebiten.IsKeyPressed(ebiten.KeyS) {
 			g.State = GameStatePlaying
 		}
+	case GameStatePaused:
+		if ebiten.IsKeyPressed(ebiten.KeyP) {
+			g.Resume()
+		}
+		if ebiten.IsKeyPressed(ebiten.KeyQ) {
+			g.NewGame()
+		}
 	case GameStatePlaying:
+		if ebiten.IsKeyPressed(ebiten.KeyP) {
+			g.Pause()
+			return nil
+		}
+
 		g.Player.Update()
 
-		if g.Player.State == PlayerStateShoot {
+		select {
+		default:
+		case <-shootCh:
 			g.spawnNewShot(g.Player)
-			g.Player.cooldown()
 		}
 
 		g.AsteroidSpawnTimer--
@@ -141,7 +147,8 @@ func (g *Game) Update() error {
 			s.Update()
 			for _, a := range g.Asteroids {
 				if Collides(a, s) {
-					g.score += g.splitAsteroid(a)
+					point := g.splitAsteroid(a)
+					g.updatePoints(point)
 					delete(g.Shots, id)
 					continue
 				}
@@ -163,22 +170,36 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		panic(fmt.Sprintln("unknown game state:", g.State))
 	case GameStateTitle:
 		op := &text.DrawOptions{}
+		op.ColorScale.ScaleWithColor(springGreen)
+		op.GeoM.Translate(ScreenWidthH-60, ScreenHeightH-90)
+		text.Draw(screen, "ASTEROIDS", f, op)
+
+		op.ColorScale.Reset()
 		op.ColorScale.ScaleWithColor(color.White)
-		op.GeoM.Translate(ScreenWidth/2-100, ScreenHeight/2-30)
+		op.GeoM.Translate(-30, 60)
 		text.Draw(screen, "Press [S] to start...", f, op)
 	case GameStateOver:
-		op1 := &text.DrawOptions{}
-		op1.ColorScale.ScaleWithColor(dragonRed)
-		op1.GeoM.Translate(ScreenWidth/2-100, ScreenHeight/2-30)
-		text.Draw(screen, "GAME OVER!", f, op1)
+		op := &text.DrawOptions{}
+		op.ColorScale.ScaleWithColor(dragonRed)
+		op.GeoM.Translate(ScreenWidthH-60, ScreenHeightH-30)
+		text.Draw(screen, "GAME OVER!", f, op)
 
-		op2 := &text.DrawOptions{}
-		op2.ColorScale.ScaleWithColor(color.White)
-		op2.GeoM.Translate(ScreenWidth/2-120, ScreenHeight/2+20)
-		text.Draw(screen, "Press [R] to restart", f, op2)
+		op.ColorScale.Reset()
+		op.ColorScale.ScaleWithColor(color.White)
+		op.GeoM.Translate(-30, 30)
+		text.Draw(screen, "Press [R] to restart", f, op)
+
+		op.GeoM.Translate(0, 30)
+		text.Draw(screen, "Press [Q] to quit...", f, op)
+	case GameStatePaused:
+		op := &text.DrawOptions{}
+		op.ColorScale.ScaleWithColor(color.White)
+		op.GeoM.Translate(ScreenWidthH-100, ScreenHeightH-30)
+		text.Draw(screen, "Press [P] to continue...", f, op)
+
+		op.GeoM.Translate(0, 30)
+		text.Draw(screen, "Press [Q] to quit...", f, op)
 	case GameStatePlaying:
-		g.Player.Draw(screen)
-
 		for _, a := range g.Asteroids {
 			a.Draw(screen)
 		}
@@ -186,13 +207,26 @@ func (g *Game) Draw(screen *ebiten.Image) {
 			s.Draw(screen)
 		}
 
+		g.Player.Draw(screen)
 		text.Draw(screen, fmt.Sprintf("LIVES: %d", g.Player.lives), f, livesOp)
-		text.Draw(screen, fmt.Sprintf("SCORE: %d", g.score), f, scoreOp)
+		text.Draw(screen, fmt.Sprintf("SCORE: %d", g.points.total), f, scoreOp)
 	}
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
 	return ScreenWidth, ScreenHeight
+}
+
+func (g *Game) NewGame() {
+	g.Player = NewPlayer()
+	g.Asteroids = make(map[int]*Asteroid)
+	g.Shots = make(map[int]*Shot)
+	g.AsteroidSpawnTimer = AsteroidSpawnInterval
+	g.State = GameStateTitle
+	g.nextAsteroidId = 0
+	g.nextShotId = 0
+	g.points = points{}
+	g.pauseDelay = 24
 }
 
 func (g *Game) Restart() {
@@ -203,7 +237,26 @@ func (g *Game) Restart() {
 	g.State = GameStatePlaying
 	g.nextAsteroidId = 0
 	g.nextShotId = 0
-	g.score = 0
+	g.points = points{}
+	g.pauseDelay = 24
+}
+
+func (g *Game) Pause() {
+	if g.pauseDelay > 0 {
+		return
+	}
+
+	g.pauseDelay = 24
+	g.State = GameStatePaused
+}
+
+func (g *Game) Resume() {
+	if g.pauseDelay > 0 {
+		return
+	}
+
+	g.pauseDelay = 24
+	g.State = GameStatePlaying
 }
 
 func (g *Game) spawnNewAsteroid() {
@@ -212,18 +265,18 @@ func (g *Game) spawnNewAsteroid() {
 		baseAngle   float64
 		spreadRange = math.Pi / 3
 	)
-	switch side := rand.Intn(4); side {
+	switch side := rand.IntN(4); side {
 	case 0:
-		pos = Vector2{X: float64(rand.Intn(ScreenWidth)), Y: 0}
+		pos = Vector2{X: float64(rand.IntN(ScreenWidth)), Y: 0}
 		baseAngle = math.Pi / 2
 	case 1:
-		pos = Vector2{X: ScreenWidth, Y: float64(rand.Intn(ScreenHeight))}
+		pos = Vector2{X: ScreenWidth, Y: float64(rand.IntN(ScreenHeight))}
 		baseAngle = math.Pi
 	case 2:
-		pos = Vector2{X: float64(rand.Intn(ScreenWidth)), Y: ScreenHeight}
+		pos = Vector2{X: float64(rand.IntN(ScreenWidth)), Y: ScreenHeight}
 		baseAngle = 3 * math.Pi / 2
 	case 3:
-		pos = Vector2{X: 0, Y: float64(rand.Intn(ScreenHeight))}
+		pos = Vector2{X: 0, Y: float64(rand.IntN(ScreenHeight))}
 		baseAngle = 0
 	}
 
@@ -233,7 +286,7 @@ func (g *Game) spawnNewAsteroid() {
 
 	sin, cos := math.Sincos(angle)
 	vel := Vector2{X: cos * speed, Y: sin * speed}
-	kind := 1 + rand.Intn(AsteroidKinds)
+	kind := 1 + rand.IntN(AsteroidKinds)
 
 	id := getNextId(&g.nextAsteroidId)
 	g.Asteroids[id] = NewAsteroid(id, pos, vel, AsteroidMinSize*float64(kind))
@@ -256,11 +309,17 @@ func (g *Game) spawnNewShot(p *Player) {
 	g.Shots[id] = NewShot(id, pos, vel)
 }
 
+const (
+	pointLarge int = iota + 1
+	pointMedium
+	pointSmall
+)
+
 func (g *Game) splitAsteroid(a *Asteroid) int {
 	delete(g.Asteroids, a.Id)
 
 	if a.Size <= AsteroidMinSize {
-		return 1
+		return pointSmall
 	}
 
 	newSize := a.Size - AsteroidMinSize
@@ -280,7 +339,37 @@ func (g *Game) splitAsteroid(a *Asteroid) int {
 	id2 := getNextId(&g.nextAsteroidId)
 	g.Asteroids[id2] = NewAsteroid(id2, a.Position, vel2, newSize)
 
-	return 0
+	if a.Size >= AsteroidMaxSize {
+		return pointLarge
+	} else {
+		return pointMedium
+	}
+}
+
+type points struct {
+	total         int
+	medium, large int
+}
+
+func (g *Game) updatePoints(point int) {
+	switch point {
+	case pointSmall:
+		g.points.total++
+	case pointMedium:
+		if g.points.medium >= 1 {
+			g.points.total++
+			g.points.medium = 0
+		} else {
+			g.points.medium++
+		}
+	case pointLarge:
+		if g.points.large >= 3 {
+			g.points.total++
+			g.points.medium = 0
+		} else {
+			g.points.large++
+		}
+	}
 }
 
 func getNextId(id *int32) int {

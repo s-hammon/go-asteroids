@@ -28,11 +28,9 @@ func (s *Shot) Update() {
 }
 
 func (s *Shot) Draw(screen *ebiten.Image) {
-	img := GetCircleImage(s.Size)
 	op := &ebiten.DrawImageOptions{}
 	op.GeoM.Translate(s.Position.X-s.Size, s.Position.Y-s.Size)
-	op.ColorScale.ScaleWithColor(dragonRed)
-	screen.DrawImage(img, op)
+	screen.DrawImage(shotImage, op)
 }
 
 func (s *Shot) Radius() float64 {

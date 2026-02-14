@@ -1,7 +1,6 @@
 package main
 
 import (
-	"image/color"
 	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -9,12 +8,33 @@ import (
 )
 
 var (
-	circleImageCache = make(map[float64]*ebiten.Image)
-	playerImage      *ebiten.Image
+	asteroidImageCache     = make(map[float64]*ebiten.Image)
+	playerImage, shotImage *ebiten.Image
 )
 
-func GetCircleImage(size float64) *ebiten.Image {
-	img, ok := circleImageCache[size]
+func init() {
+	shotImage = initShotImage()
+}
+
+func initShotImage() *ebiten.Image {
+	diameter := ShotSize * 2
+	img := ebiten.NewImage(int(diameter+2), int(diameter+2))
+
+	vector.FillCircle(
+		img,
+		float32(ShotSize+1),
+		float32(ShotSize+1),
+		float32(ShotSize),
+		dragonRed,
+		false,
+	)
+
+	return img
+
+}
+
+func GetAsteroidImage(size float64) *ebiten.Image {
+	img, ok := asteroidImageCache[size]
 	if ok {
 		return img
 	}
@@ -27,11 +47,11 @@ func GetCircleImage(size float64) *ebiten.Image {
 		float32(size+1),
 		float32(size+1),
 		float32(size),
-		color.White,
+		winterYellow,
 		false,
 	)
 
-	circleImageCache[size] = img
+	asteroidImageCache[size] = img
 	return img
 }
 
@@ -64,10 +84,10 @@ func GetPlayerImage() *ebiten.Image {
 		Y: centerY + sin*PlayerSize,
 	}
 
-	r := float32(0x8A) / 255.0
-	g := float32(0x9A) / 255.0
-	b := float32(0x7B) / 255.0
-	a := float32(0xFF) / 255.0
+	r := float32(dragonGreen.R) / 255.0
+	g := float32(dragonGreen.G) / 255.0
+	b := float32(dragonGreen.B) / 255.0
+	a := float32(dragonGreen.A) / 255.0
 	vertices := []ebiten.Vertex{
 		{DstX: float32(j.X), DstY: float32(j.Y), ColorR: r, ColorG: g, ColorB: b, ColorA: a},
 		{DstX: float32(k.X), DstY: float32(k.Y), ColorR: r, ColorG: g, ColorB: b, ColorA: a},

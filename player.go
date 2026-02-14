@@ -18,7 +18,6 @@ type PlayerState int
 
 const (
 	PlayerStateIdle PlayerState = iota
-	PlayerStateShoot
 	PlayerStateRespawn
 	PlayerStateDead
 )
@@ -52,10 +51,10 @@ func NewPlayer() *Player {
 }
 
 func (p *Player) Update() {
-	p.shootCooldown--
+	p.shootCooldown = max(0, p.shootCooldown-1)
 	p.respawnCooldown = max(0, p.respawnCooldown-1)
 
-	if p.respawnCooldown <= 0 {
+	if p.respawnCooldown == 0 {
 		p.blinkTimer = 0
 		p.State = PlayerStateIdle
 	} else {
@@ -81,8 +80,9 @@ func (p *Player) Update() {
 		p.Velocity = p.Velocity.Add(thrust)
 	}
 
-	if ebiten.IsKeyPressed(ebiten.KeySpace) && p.shootCooldown <= 0 {
-		p.State = PlayerStateShoot
+	if ebiten.IsKeyPressed(ebiten.KeySpace) && p.shootCooldown == 0 {
+		p.Shoot(shootCh)
+		p.shootCooldown = PlayerShootCooldown
 	}
 
 	p.Velocity = p.Velocity.Scale(PlayerFriction)
@@ -111,9 +111,8 @@ func (p *Player) Pos() Vector2 {
 	return p.Position
 }
 
-func (p *Player) cooldown() {
-	p.State = PlayerStateIdle
-	p.shootCooldown = PlayerShootCooldown
+func (p *Player) Shoot(ch chan<- struct{}) {
+	ch <- struct{}{}
 }
 
 func (p *Player) respawn() {
