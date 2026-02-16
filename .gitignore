@@ -1,3 +1,4 @@
 cpu.prof
 *.txt
 bin/
+dist/

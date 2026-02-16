@@ -11,10 +11,8 @@ builds:
     goos:
       - linux
       - windows
-      - darwin
     goarch:
       - amd64
-      - arm64
 
   - id: asteroids-wasm
     binary: asteroids
@@ -22,12 +20,14 @@ builds:
       - js
     goarch:
       - wasm
+    env:
+      - CGO_ENABLED=1
 
 archives:
   - formats:
-    - binary
+      - binary
     name_template: >-
-      asteroids_{{- tolower .Os }}_{{- if eq .Arch "amd64" }}x86_64{{-else }}{{ .Arch }}{{ end }}
+      asteroids_{{- tolower .Os }}_{{- if eq .Arch "amd64" }}x86_64{{- else }}{{ .Arch }}{{ end }}
 
 checksum:
   name_template: "checksums.txt"
