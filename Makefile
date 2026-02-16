@@ -22,7 +22,6 @@ lint:
 	@golangci-lint run --timeout=2m
 
 ready: test lint gosec
-	@goreleaser release --snapshot --clean
 
 test-packages:
 	go test -json $$(go list ./... | grep -v -e /bin -e /cmd -e /internal/api/models) |\
