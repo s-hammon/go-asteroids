@@ -1,13 +1,15 @@
-# Ye Olde Asteroids
+# Asteroids!
 
 A classic Asteroids-like game built with Go and the Ebiten game engine.
 
-## Installing on desktop (Go)
+## Installation
+
+Check the latest release for Windows/Linux binary.
+
+#### Go
 
 ```bash
-git clone https://github.com/your-username/go-asteroids.git # Replace with actual repo URL if available
-cd go-asteroids
-go run .
+go install github.com/s-hammon/go-asteroids@latest
 ```
 
 ## Controls
@@ -17,7 +19,7 @@ go run .
 - **D**: Rotate right
 - **Space**: Shoot
 
-## Built With
+## References
 
 - [Go](https://golang.org/)
 - [Ebiten](https://ebiten.org/) - A dead simple 2D game library for Go
