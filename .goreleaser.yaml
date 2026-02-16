@@ -3,7 +3,6 @@ project_name: go-asteroids
 
 before:
   hooks:
-    - apt-get update && apt-get install -y libx11-dev libgl1-mesa=dev libxcursor-dev libxi-dev
     - go mod tidy
 
 builds:
