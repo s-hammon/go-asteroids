@@ -2,6 +2,8 @@
 
 A classic Asteroids-like game built with Go and the Ebiten game engine.
 
+Play it [here](https://s-hammon.github.io/)!
+
 ## Installation
 
 Check the latest release for Windows/Linux binary.
