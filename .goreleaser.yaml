@@ -1,0 +1,37 @@
+version: 2
+project_name: go-asteroids
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: asteroids
+    binary: asteroids
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+  - id: asteroids-wasm
+    binary: asteroids
+    goos:
+      - js
+    goarch:
+      - wasm
+
+archives:
+  - formats:
+    - binary
+    name_template: >-
+      asteroids_{{- tolower .Os }}_{{- if eq .Arch "amd64" }}x86_64{{-else }}{{ .Arch }}{{ end }}
+
+checksum:
+  name_template: "checksums.txt"
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+changelog:
+  use: github-native
