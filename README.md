@@ -2,7 +2,7 @@
 
 A classic Asteroids-like game built with Go and the Ebiten game engine.
 
-Play it [here](https://s-hammon.github.io/)!
+Play it [here](https://s-hammon.github.io/asteroids.html)!
 
 ## Installation
 
